@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="picture">Picture</string>
+    <string name="front">Front</string>
+    <string name="back">Back</string>
+    <string name="mirror">Mirror</string>
+    <string name="non_mirror">Non Mirror</string>
+    <string name="description_info">Info</string>
+    <string name="request_permission">This sample needs camera permission.</string>
+    <string name="mirror_view">Mirrored</string>
+    <string name="real_view">Real</string>
+    <string name="camera_error">This device doesn\'t support Camera2 API.</string>
+</resources>
