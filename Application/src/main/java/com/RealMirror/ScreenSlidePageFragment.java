@@ -17,15 +17,20 @@ import android.widget.ImageView;
 
 public class ScreenSlidePageFragment extends Fragment {
 
+    int position = 0;
     @Override
     public View onCreateView(LayoutInflater inflater, ViewGroup container,
                              Bundle savedInstanceState) {
         ViewGroup rootView = (ViewGroup) inflater.inflate(
                 R.layout.fragment_screen_slide_page, container, false);
-        ImageView imageView = (ImageView)getActivity().findViewById(R.id.image);
-        Uri uri = android.net.Uri.parse(ScreenSlidePagerActivity.files[ScreenSlidePagerActivity.IMAGE_NUM].getAbsolutePath());
+        ImageView imageView = (ImageView)(rootView.findViewById(R.id.image));
+        Uri uri = android.net.Uri.parse(ScreenSlidePagerActivity.files[ScreenSlidePagerActivity.files.length - position - 1].getAbsolutePath());
         imageView.setImageURI(uri);
 
         return rootView;
+    }
+
+    public void setPosition(int p){
+        position = p;
     }
 }

@@ -204,42 +204,51 @@ public class MirrorKlass extends Fragment
 
         @Override
         public void onImageAvailable(ImageReader reader) {
-            Image image = reader.acquireNextImage();
-
-            final Image.Plane[] planes = image.getPlanes();
-            final ByteBuffer buffer = planes[0].getBuffer();
-            int offset = 0;
-            //int pixelStride = planes[0].getPixelStride();
-            //int rowStride = planes[0].getRowStride();
-            //int rowPadding = rowStride - pixelStride * image.getWidth();
-            // create bitmap
-            //Bitmap bitmap = Bitmap.createBitmap(image.getWidth(), image.getHeight(), Bitmap.Config.RGB_565);
-            Log.d(TAG, "height = " + Integer.toString(image.getWidth()));
-            Log.d(TAG, "width = " + Integer.toString(image.getHeight()));
-            Bitmap bitmap = Bitmap.createBitmap(image.getWidth(), image.getHeight(), Bitmap.Config.RGB_565);
-            bitmap.copyPixelsFromBuffer(buffer.position(0));
-
-            SharedPreferences sharedPreferences =  getActivity().getSharedPreferences("pref", Context.MODE_PRIVATE);
+            SharedPreferences sharedPreferences = getActivity().getSharedPreferences("pref", Context.MODE_PRIVATE);
             boolean mirrorView = sharedPreferences.getBoolean(MIRROR_STATE, MIRROR_VIEW_OFF);
             Integer facingComplement = sharedPreferences.getInt(CAMERA_FACING_COMPLEMENT, BACK_CAMERA);
 
-            Bitmap transformed = null;
-            if ((facingComplement == BACK_CAMERA && mirrorView == MIRROR_VIEW_OFF) || (facingComplement == FRONT_CAMERA && mirrorView == MIRROR_VIEW_ON)) {
-                Matrix matrix = new Matrix();
-                int rotation = getActivity().getWindowManager().getDefaultDisplay().getRotation();
-                if (Surface.ROTATION_90 == rotation || Surface.ROTATION_270 == rotation) {
-                    matrix.preScale(1.0f, -1.0f);
-                } else {
-                    matrix.preScale(-1.0f, 1.0f);
-                }
-                transformed = Bitmap.createBitmap(bitmap, 0, 0, bitmap.getWidth(), bitmap.getHeight(), matrix, false);
-                //transformed.setDensity(DisplayMetrics.DENSITY_DEFAULT);
-            }else {
-                transformed = bitmap;
-            }
+            if ((facingComplement == BACK_CAMERA && mirrorView == MIRROR_VIEW_ON) || (facingComplement == FRONT_CAMERA && mirrorView == MIRROR_VIEW_OFF)) {
+                Bitmap bm = mTextureView.getBitmap();
 
-            mBackgroundHandler.post(new ImageSaver(transformed, mFile));
-            image.close();  //CHECK
+                int rotation = getActivity().getWindowManager().getDefaultDisplay().getRotation();
+                Matrix matrix = new Matrix();
+                RectF viewRect = new RectF(0, 0, mTextureView.getWidth(), mTextureView.getHeight());
+                RectF bufferRect = new RectF(0, 0, mPreviewSize.getHeight(), mPreviewSize.getWidth());
+                float centerX = viewRect.centerX();
+                float centerY = viewRect.centerY();
+                if (Surface.ROTATION_90 == rotation || Surface.ROTATION_270 == rotation) {
+                    bufferRect.offset(centerX - bufferRect.centerX(), centerY - bufferRect.centerY());
+                    matrix.setRectToRect(viewRect, bufferRect, Matrix.ScaleToFit.FILL);
+                    float scale = Math.max(
+                            (float) mTextureView.getHeight() / mPreviewSize.getHeight(),
+                            (float) mTextureView.getWidth() / mPreviewSize.getWidth());
+
+                    if (!mirrorView) {
+                        matrix.postScale(scale, scale * -1, centerX, centerY);
+                    } else {                                                      //not needed
+                        matrix.postScale(scale, scale, centerX, centerY);
+                    }
+                    matrix.postRotate(90 * (rotation - 2), centerX, centerY);
+                } else if (Surface.ROTATION_180 == rotation) {
+                    if (!mirrorView) {
+                        matrix.setScale(-1, 1);
+                        matrix.postTranslate(mTextureView.getWidth(), 0);
+                    }
+                    matrix.postRotate(180, centerX, centerY);
+                } else {
+                    if (!mirrorView) {
+                        matrix.setScale(-1, 1);
+                        matrix.postTranslate(mTextureView.getWidth(), 0);
+                    }
+                }
+
+
+                mBackgroundHandler.post(new ImageSaver(bm, matrix, bm.getWidth(), bm.getHeight(), mFile));
+            } else {
+                Image image = reader.acquireNextImage();
+                mBackgroundHandler.post(new ImageSaver(image, mFile));
+            }
         }
 
     };
@@ -395,16 +404,19 @@ public class MirrorKlass extends Fragment
             directory = new File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_PICTURES) + WORKING_FOLDER);
             Log.d(TAG, directory.toString());
             directory.mkdirs();
-        }catch (Exception e){
+        } catch (Exception e) {
             Log.e(TAG, e.toString());
             directory = null;
 
-        }  finally {
+        } finally {
             SharedPreferences sharedPreferences = getActivity().getSharedPreferences("pref", Context.MODE_PRIVATE);
             SharedPreferences.Editor editor = sharedPreferences.edit();
+            //boolean mirrorView = sharedPreferences.getBoolean(MIRROR_STATE, MIRROR_VIEW_OFF);
+            //Integer cameraComplement = sharedPreferences.getInt(CAMERA_FACING_COMPLEMENT, BACK_CAMERA);
+
             if (directory != null) {
-                editor.putString(DIRECTORY_NAME_PREF, directory.toString());
-            } else{
+                editor.putString(DIRECTORY_NAME_PREF, directory.toString() + "/");
+            } else {
                 editor.putString(DIRECTORY_NAME_PREF, Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_PICTURES).toString());
             }
             editor.commit();
@@ -413,7 +425,7 @@ public class MirrorKlass extends Fragment
         return inflater.inflate(R.layout.fragment_camera2_basic, container, false);
     }
 
-    public void SetArguments(Bundle bundle){
+    public void SetArguments(Bundle bundle) {
 
     }
 
@@ -423,6 +435,7 @@ public class MirrorKlass extends Fragment
         view.findViewById(R.id.cam_button).setOnClickListener(this);
         view.findViewById(R.id.mirror_button).setOnClickListener(this);
         mTextureView = (AutoFitTextureView) view.findViewById(R.id.texture);
+        mTextureView.setDrawingCacheEnabled(true);
         setCameraIcon(view);
         setMirrorText(view);
         attachToView(view);
@@ -457,7 +470,7 @@ public class MirrorKlass extends Fragment
         setMirrorText(getView());
     }
 
-    private void attachToView(View view){
+    private void attachToView(View view) {
         view.setOnTouchListener(new OnSwipeTouchListener(getActivity()) {
             @Override
             public void onSwipeLeft() {
@@ -479,22 +492,22 @@ public class MirrorKlass extends Fragment
         ImageButton camButton = (ImageButton) view.findViewById(R.id.cam_button);
         SharedPreferences sharedPreferences = getActivity().getSharedPreferences("pref", Context.MODE_PRIVATE);
         Integer facingComplement = sharedPreferences.getInt(CAMERA_FACING_COMPLEMENT, 1);
-        if (facingComplement == FRONT_CAMERA){
+        if (facingComplement == FRONT_CAMERA) {
             camButton.setImageResource(R.drawable.back_cam);
-        }    else{
+        } else {
             camButton.setImageResource(R.drawable.front_cam);
         }
     }
 
-    private void setMirrorText(final View view){
-        TextView textView = (TextView)view.findViewById(R.id.mirror_textview);
+    private void setMirrorText(final View view) {
+        TextView textView = (TextView) view.findViewById(R.id.mirror_textview);
         SharedPreferences sharedPreferences = getActivity().getSharedPreferences("pref", Context.MODE_PRIVATE);
         boolean mirrorView = sharedPreferences.getBoolean(MIRROR_STATE, MIRROR_VIEW_OFF);
         Integer facingComplement = sharedPreferences.getInt(CAMERA_FACING_COMPLEMENT, 1);
-        if ((facingComplement == BACK_CAMERA && mirrorView == MIRROR_VIEW_ON) || (facingComplement == FRONT_CAMERA && mirrorView == MIRROR_VIEW_OFF)){
+        if ((facingComplement == BACK_CAMERA && mirrorView == MIRROR_VIEW_ON) || (facingComplement == FRONT_CAMERA && mirrorView == MIRROR_VIEW_OFF)) {
             textView.setText(MIRROR_VIEW);
             textView.setTextColor(Color.RED);
-        }else {
+        } else {
             textView.setText(REAL_VIEW);
             textView.setTextColor(Color.GREEN);
         }
@@ -514,7 +527,7 @@ public class MirrorKlass extends Fragment
                 CameraCharacteristics characteristics
                         = manager.getCameraCharacteristics(cameraId);
 
-                SharedPreferences sharedPreferences =  getActivity().getSharedPreferences("pref", Context.MODE_PRIVATE);
+                SharedPreferences sharedPreferences = getActivity().getSharedPreferences("pref", Context.MODE_PRIVATE);
                 Integer facingComplement = sharedPreferences.getInt(CAMERA_FACING_COMPLEMENT, 1);
 
                 // We use a front facing camera in this sample.
@@ -686,7 +699,8 @@ public class MirrorKlass extends Fragment
                         @Override
                         public void onConfigureFailed(
                                 CameraCaptureSession cameraCaptureSession) {
-                            showToast("Failed");
+                            //getActivity().stopService(getActivity().getIntent());
+                            showToast("Please restart the application.");
                         }
                     }, null
             );
@@ -708,7 +722,7 @@ public class MirrorKlass extends Fragment
         if (null == mTextureView || null == mPreviewSize || null == activity) {
             return;
         }
-        SharedPreferences sharedPreferences =  getActivity().getSharedPreferences("pref", Context.MODE_PRIVATE);
+        SharedPreferences sharedPreferences = getActivity().getSharedPreferences("pref", Context.MODE_PRIVATE);
         Boolean mirrorView = sharedPreferences.getBoolean(MIRROR_STATE, MIRROR_VIEW_OFF);
 
         int rotation = activity.getWindowManager().getDefaultDisplay().getRotation();
@@ -726,7 +740,7 @@ public class MirrorKlass extends Fragment
 
             if (!mirrorView) {
                 matrix.postScale(scale, scale * -1, centerX, centerY);
-            }     else{                                                      //not needed
+            } else {                                                      //not needed
                 matrix.postScale(scale, scale, centerX, centerY);
             }
             matrix.postRotate(90 * (rotation - 2), centerX, centerY);
@@ -736,7 +750,7 @@ public class MirrorKlass extends Fragment
                 matrix.postTranslate(viewWidth, 0);
             }
             matrix.postRotate(180, centerX, centerY);
-        }  else {
+        } else {
             if (!mirrorView) {
                 matrix.setScale(-1, 1);
                 matrix.postTranslate(viewWidth, 0);
@@ -874,13 +888,13 @@ public class MirrorKlass extends Fragment
                 takePicture();
                 break;
             }
-            case R.id.cam_button:{
+            case R.id.cam_button: {
                 closeCamera();
                 switchCameraView();
                 openCamera(mTextureView.getWidth(), mTextureView.getHeight());
                 break;
             }
-            case R.id.mirror_button:{
+            case R.id.mirror_button: {
                 closeCamera();
                 switchMirrorView();
                 openCamera(mTextureView.getWidth(), mTextureView.getHeight());
@@ -892,8 +906,8 @@ public class MirrorKlass extends Fragment
     /*
     Helps switch camera view on button press
      */
-    private void switchCameraView(){
-        SharedPreferences sharedPreferences =  getActivity().getSharedPreferences("pref", Context.MODE_PRIVATE);
+    private void switchCameraView() {
+        SharedPreferences sharedPreferences = getActivity().getSharedPreferences("pref", Context.MODE_PRIVATE);
         Integer facingComplement = sharedPreferences.getInt(CAMERA_FACING_COMPLEMENT, 1);
 
         if (facingComplement == 1) {
@@ -906,7 +920,6 @@ public class MirrorKlass extends Fragment
         editor.commit();
 
         if (mTextureView.isAvailable()) {
-
             switchMirrorView();
             setCameraIcon(getView());
         } else {
@@ -955,9 +968,19 @@ public class MirrorKlass extends Fragment
          */
         private File mFile;
 
-        public ImageSaver(Bitmap bitmap, File file) {
+        private int width;
+        private int height;
+        private Matrix matrix;
+
+        //ImageSaver(rotated, matrix, mTextureView.getWidth(), mTextureView.getHeight(), mFile
+
+
+        public ImageSaver(Bitmap bitmap, Matrix m, int w, int h, File file) {
             mBitmap = bitmap;
             mFile = file;
+            width = w;
+            height = h;
+            matrix = m;
             mImage = null;
         }
 
@@ -972,8 +995,11 @@ public class MirrorKlass extends Fragment
             if (mImage == null && mBitmap != null) {
                 FileOutputStream output = null;
                 try {
+                    Bitmap rotated = Bitmap.createBitmap(mBitmap, 0, 0, width, height, matrix, true);
                     output = new FileOutputStream(mFile);
-                    mBitmap.compress(Bitmap.CompressFormat.JPEG, 100, output);
+                    rotated.compress(Bitmap.CompressFormat.JPEG, 100, output);
+                    output.flush();
+                    output.close();
                 } catch (IOException e) {
                     e.printStackTrace();
                 } finally {
@@ -994,6 +1020,8 @@ public class MirrorKlass extends Fragment
                 try {
                     output = new FileOutputStream(mFile);
                     output.write(bytes);
+                    buffer.clear();
+
                 } catch (IOException e) {
                     e.printStackTrace();
                 } finally {
@@ -1053,6 +1081,5 @@ public class MirrorKlass extends Fragment
                     })
                     .create();
         }
-
     }
 }

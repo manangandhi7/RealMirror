@@ -1,6 +1,8 @@
 package com.RealMirror;
 
 
+import android.content.Context;
+import android.content.SharedPreferences;
 import android.os.Bundle;
 import android.os.Environment;
 import android.support.v4.app.Fragment;
@@ -16,7 +18,7 @@ import java.io.File;
  * Created by manan on 11/4/2015.
  */
 
-public class ScreenSlidePagerActivity extends FragmentActivity {
+public class ScreenSlidePagerActivity extends FragmentActivity /*implements LoaderManager.LoaderCallbacks<Cursor>*/{
     /**
      * The number of pages (wizard steps) to show in this demo.
      */
@@ -41,10 +43,12 @@ public class ScreenSlidePagerActivity extends FragmentActivity {
         setContentView(R.layout.activity_screen_slide);
 
         //set numpages = num of images
-        File file =  Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DCIM);
+        SharedPreferences sharedPreferences = getSharedPreferences("pref", Context.MODE_PRIVATE);
+        File file = new File(sharedPreferences.getString(MirrorKlass.DIRECTORY_NAME_PREF, Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_PICTURES).getAbsolutePath()));
+
         if (file.isDirectory()) {
             if (file.listFiles() != null) {
-                files = new File[file.listFiles().length];
+                //files = new File[file.listFiles().length];
                 NUM_PAGES = file.listFiles().length;
                 files = file.listFiles();
             }
@@ -58,18 +62,18 @@ public class ScreenSlidePagerActivity extends FragmentActivity {
 
     @Override
     public void onBackPressed() {
-        if (mPager.getCurrentItem() == 0) {
+        //if (mPager.getCurrentItem() == 0) {
             // If the user is currently looking at the first step, allow the system to handle the
             // Back button. This calls finish() on this activity and pops the back stack.
             super.onBackPressed();
-        } else {
+        //} else {
             // Otherwise, select the previous step.
-            mPager.setCurrentItem(mPager.getCurrentItem() - 1);
-        }
+          //  mPager.setCurrentItem(mPager.getCurrentItem() - 1);
+        //}
     }
 
     /**
-     * A simple pager adapter that represents 5 ScreenSlidePageFragment objects, in
+     * A simple pager adapter that represents ScreenSlidePageFragment objects, in
      * sequence.
      */
     private class ScreenSlidePagerAdapter extends FragmentStatePagerAdapter {
@@ -81,6 +85,8 @@ public class ScreenSlidePagerActivity extends FragmentActivity {
         public Fragment getItem(int position) {
             IMAGE_NUM = position;
             Fragment fr = new ScreenSlidePageFragment();
+            ((ScreenSlidePageFragment)fr).setPosition(position);
+
             //ImageView imageView = (ImageView)findViewById(R.id.image);
 
             //URI to Uri and done

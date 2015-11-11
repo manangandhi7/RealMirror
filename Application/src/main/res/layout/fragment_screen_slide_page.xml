@@ -1,6 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
+<RelativeLayout
+        android:id="@+id/slider_item"
+        android:layout_height="match_parent"
+        android:layout_width="match_parent"
+        xmlns:android="http://schemas.android.com/apk/res/android">
 <ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
             android:id="@+id/content"
+            android:background="@color/dark_gray"
             android:layout_width="match_parent"
             android:layout_height="match_parent" >
 
@@ -13,4 +19,15 @@
             android:scaleType="centerInside"
             android:adjustViewBounds="true"
             android:src="@drawable/im1"/>
+
 </ScrollView>
+    <ImageButton
+            android:id="@+id/share"
+            android:layout_height = "wrap_content"
+            android:layout_width = "wrap_content"
+            android:layout_gravity="bottom|left"
+            android:layout_centerHorizontal="true"
+            android:adjustViewBounds="true"
+            android:scaleType="fitCenter"
+            android:src="@drawable/mirror" />
+</RelativeLayout>
